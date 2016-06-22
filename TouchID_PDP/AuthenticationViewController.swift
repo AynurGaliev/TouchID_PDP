@@ -2,14 +2,17 @@
 //  AuthenticationViewController.swift
 //  TouchID_PDP
 //
-//  Created by Galiev Aynur on 22.06.16.
+//  Created by Galiev Aynur on 18.06.16.
 //  Copyright © 2016 FlatStack. All rights reserved.
 //
+
 import UIKit
 import LocalAuthentication
 
 class AuthenticationViewController: UIViewController {
 
+    private var enrollmentState: NSData?
+    
     @IBAction func loginButtonClicked(sender: UIButton) {
         
         let authenticationContext: LAContext = LAContext()
@@ -17,6 +20,7 @@ class AuthenticationViewController: UIViewController {
         
         var policy: LAPolicy = .DeviceOwnerAuthenticationWithBiometrics
         if #available(iOS 9.0, *) {
+            authenticationContext.touchIDAuthenticationAllowableReuseDuration = 30.0
             policy = .DeviceOwnerAuthentication
         }
         
@@ -25,26 +29,39 @@ class AuthenticationViewController: UIViewController {
             return
         }
         
-
-        authenticationContext.evaluatePolicy(.DeviceOwnerAuthenticationWithBiometrics,
-            localizedReason : "Application requires authentification",
-            reply           : { [weak self] (success, error) -> Void in
-                
-            guard let sself = self else { return }
-                
-            if success {
-                sself.showAlertWithTitle("Success", message: "Authentification succeeded!")
+        if #available(iOS 9.0, *) {
+            if let data = enrollmentState, let domainState = authenticationContext.evaluatedPolicyDomainState where data == domainState {
+                self.showAlertWithTitle("Success", message: "Authentification succeeded!")
             } else {
-                if let lError = error {
-                    let message = sself.getErrorMessage(forErrorCode: lError.code)
-                    sself.showAlertWithTitle("Error", message: message)
-                }
+                self.auth(authenticationContext)
             }
-            
-        })
-        
+        } else {
+            self.auth(authenticationContext)
+        }
     }
 
+    func auth(authenticationContext: LAContext) {
+        
+        authenticationContext.evaluatePolicy(.DeviceOwnerAuthenticationWithBiometrics,
+                                             localizedReason : "Application requires authentification",
+                                             reply           : { [weak self] (success, error) -> Void in
+                                                
+                                                guard let sself = self else { return }
+                                                
+                                                if success {
+                                                    if #available(iOS 9.0, *) {
+                                                        sself.enrollmentState = authenticationContext.evaluatedPolicyDomainState
+                                                    }
+                                                    sself.showAlertWithTitle("Success", message: "Authentification succeeded!")
+                                                } else {
+                                                    if let lError = error {
+                                                        let message = sself.getErrorMessage(forErrorCode: lError.code)
+                                                        sself.showAlertWithTitle("Error", message: message)
+                                                    }
+                                                }
+                                                
+            })
+    }
 
     func showAlertWithTitle(title: String, message: String) {
         
